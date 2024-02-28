@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="keywords" content="Node, events, sockets, chat">
+    <title>Chat App</title>
+    <style>
+        body {
+            background-color: #3d2810; /* Coffee Brown */
+            color: #ffd700; /* Gold */
+        }
+
+        .container {
+            background-color: #3d2810;
+            margin: auto;
+            width: 40%;
+            border: .5px solid #ffd700;
+            border-radius: 10px 10px 0 0;
+            padding: 30px;
+        }
+
+        #chatDisplay {
+            height: 100%;
+            /* overflow-y: scroll; */
+        }
+
+        #chatDisplay p {
+            font-size: 16px;
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+        }
+
+        .bottom-panel,
+        .bottom-panel input {
+            font-size: 16px;
+            font-family: Verdana, Geneva, Tahoma, sans-serif;
+            border-radius: 0 0;
+        }
+
+        .bottom-panel {
+            border-radius: 0 0 10px 10px;
+            background-color: #3d2810;
+            border-top: .5px solid #ffd700;
+        }
+
+        input#name,
+        input#message {
+            height: 30px;
+            border-radius: 5px;
+            border: .3px solid #ffd700;
+            color: #ffd700;
+            background-color: #3d2810;
+        }
+
+        #text {
+            font-size: 16px;
+            font-weight: medium;
+        }
+
+        #sendButton,
+        #connectBtn,
+        #disconnectBtn {
+            cursor: pointer;
+            font-size: 14px;
+            border-radius: 10px;
+        }
+
+        #sendButton {
+            color: #ffd700;
+            background-color: #808080; /* Greyish color */
+            padding: 8px 14px;
+            border: 1px solid #808080;
+            cursor: auto;
+        }
+
+        #btn-section {
+            display: flex;
+            gap: 40px;
+            justify-content: center;
+            align-items: center;
+        }
+    </style>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"
+        integrity="sha384-mZLF4UVrpi/QTWPA7BjNPEnkIfRFn4ZEO3Qt/HFklTJBj/gBOV8G3HcKn4NfQblz" crossorigin="anonymous">
+    </script>
+</head>
+
+<body>
+    <div class="main-container">
+        <div class="container" style="height: 500px;max-height: 500px;overflow-y: scroll;">
+            <div id="chatDisplay"></div>
+        </div>
+        <div class="container bottom-panel">
+            <div id="btn-section">
+                <button id="connectBtn">Connect</button>
+                <button id="disconnectBtn" disabled>Disconnect</button>
+            </div>
+            <p>Users in the chat: <span id="userCount">0</span></p>
+            <p>Current Server Time: <span id="time-display"></span></p>
+            <p id="text">Your Name: <input type="text" id="name" disabled /></p>
+            <p id="text">Your Message: <input type="text" id="message" style="width: 100%" disabled /></p>
+            <button id="sendButton"  disabled>Send Message</button>
+        </div>
+    </div>
+    <script>
+        let socket;
+const chatDisplayElement = document.querySelector("#chatDisplay");
+const nameInputBox = document.querySelector("#name");
+const messageInputBox = document.querySelector("#message");
+const sndBtn = document.querySelector("#sendButton");
+const timeSpan = document.querySelector("#time-display");
+const userCountSpan = document.querySelector("#userCount");
+const connectButton = document.querySelector("#connectBtn");
+const disconnectButton = document.querySelector("#disconnectBtn");
+
+let isDisconnected = false; // Variable to track disconnection state
+
+
+//ensure the chat display is empty
+chatDisplayElement.innerHTML = '';
+
+// event for when connect button is clicked
+connectButton.addEventListener("click", onConnectButtonClick);
+
+// event for when disconnect button is clicked
+disconnectButton.addEventListener("click", onDisconnectButtonClick);
+
+
+
+
+// function for when connection button is clicked
+function onConnectButtonClick() {
+    // Set disconnection state to false
+    isDisconnected = false;
+
+    // Connect to the server
+    socket = io.connect('http://localhost:3000');
+
+    // Send the welcome message out
+    socket.on('welcome', function (message) {
+        displayMessage(message);
+    });
+
+    // Activate the UI elements
+    connectButton.disabled = true;
+    disconnectButton.disabled = false;
+    nameInputBox.disabled = false;
+    messageInputBox.disabled = false;
+    sndBtn.disabled = false;
+
+    // Give the send button an active color
+    sndBtn.style.backgroundColor = "#208823";
+
+    // Send the server time out
+    socket.on('server_time', function (serverTime) {
+        if (!isDisconnected) {
+            timeSpan.innerText = serverTime;
+        }
+    });
+
+    // Send the client count out
+    socket.on('count', function (count) {
+        userCountSpan.innerText = count;
+    });
+
+    // Listen for updated user count
+socket.on('count', function (count) {
+    userCountSpan.innerText = count;
+});
+
+    // event for when send button is clicked
+    sndBtn.addEventListener("click", onSendButtonClick);
+
+    //Listen for messages from the server and send with timestamp
+    socket.on('new_message', function (data) {
+        displayMessage(data.name + ": " + data.message);
+    });
+  
+
+
+    
+
+    // Listen for new user joined message from the server
+    socket.on('new_user', function (message) {
+        displayMessage(message);
+        // alert(message + " has joined the chat!");
+    });
+
+    // Listen for user left message from the server
+    socket.on('user_left', function (message) {
+        displayMessage(message);
+        // alert(message + " has left the chat!");
+    });
+
+    // Listen for server disconnect event
+    socket.on('disconnect', () => {
+        console.log('Server Disconnected');
+    });
+}
+
+
+// function for when disconnect button is clicked
+function onDisconnectButtonClick() {
+    // Set disconnection state to true
+    isDisconnected = true;
+
+    // Disable the UI elements
+    nameInputBox.disabled = true;
+    messageInputBox.disabled = true;
+    disconnectButton.disabled = true;
+    sndBtn.disabled = true;
+
+    // Grey out the send button
+    sndBtn.style.backgroundColor = "#b6b6b6";
+
+    // Enable the UI elements
+    connectButton.disabled = false;
+
+    // Clear the chat display
+    chatDisplayElement.innerHTML = '';
+
+    // Clear the count
+    userCountSpan.innerText = '';
+
+    // Clear the name input
+    nameInputBox.value = '';
+
+    // Clear the server time display
+    timeSpan.innerText = '';
+
+    // Send the disconnect message out
+    socket.emit('disconnect');
+
+    //reload the browser session
+    location.reload();
+
+}
+
+// function for when send button is clicked
+function onSendButtonClick() {
+    const userName = nameInputBox.value;
+    const newChat = messageInputBox.value;
+
+    if (userName.length === 0 || newChat.length === 0) {
+        alert("Please enter your name and message");
+    } else {
+        const data = {
+            name: userName,
+            message: newChat,
+            //add timestamp here
+            time:arguments.time
+        };
+        socket.emit('message', data);
+        messageInputBox.value = '';
+    }
+}
+
+// Display message in the chat display
+function displayMessage(message) {
+    const pTag = document.createElement("p");
+    pTag.innerText = message;
+    chatDisplayElement.appendChild(pTag);
+}
+
+    </script>
+</body>
+
+</html>
